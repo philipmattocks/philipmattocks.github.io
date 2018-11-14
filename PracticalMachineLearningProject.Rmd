@@ -1,0 +1,124 @@
+---
+title: "PracticalMachineLearningProject"
+author: "P Mattocks"
+date: "14 November 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+This report aims to test three different models on the data, determine the out of sample error for each, and then then using the best model predict the excersise class for twenty different test cases.
+
+
+## Exploring the data
+
+The original data consists of a training and test set set, each with 160 columns.  We'll load these into variables and also the libraries that we'll need for the report.  The test data set will actually be the validation set; the training set will later be partitioned into a training and test set. 
+
+```{r}
+library(dplyr)
+library(caret)
+library(rattle)
+pml_training.csv <- read.csv('pml-training.csv')
+pml_validation.csv <- read.csv('pml-testing.csv')
+```
+
+We can see a summary of the training set:
+
+```{r}
+summary(pml_training.csv)
+```
+
+From this, we can see that many of the columns almost entirely consist of "NA",empty or "#DIV/0!" values.  
+
+## Cleaning the data
+
+We will remove columns with more than 95% of "NA",empty or "#DIV/0!" values.  We will also remove any columns relating to timestamps and usernames which are not useful for our models:
+
+```{r}
+#remove columns with >95% NA",empty or "#DIV/0!" values
+colstoremove <- which(colSums(is.na(pml_training.csv) |pml_training.csv==""|pml_training.csv=="#DIV/0!")>nrow(pml_training.csv)*.95)
+pml_training.csv_cleaned <- pml_training.csv[,-colstoremove]
+pml_validation.csv_cleaned <- pml_validation.csv[,-colstoremove]
+#remove username and timestamp columns:
+pml_training.csv_cleaned <- select(pml_training.csv_cleaned,(-c(X,user_name,raw_timestamp_part_1,raw_timestamp_part_2,cvtd_timestamp,new_window,num_window)))
+pml_validation.csv_cleaned <- select(pml_validation.csv_cleaned,(-c(X,user_name,raw_timestamp_part_1,raw_timestamp_part_2,cvtd_timestamp,new_window,num_window)))
+```
+
+So now we are left with 53 variables.
+
+## Partitioning the training data
+We will partition the training set into a training and test set, setting the seed for Reproducibility:
+```{r}
+set.seed(123)
+trainingindexes <- createDataPartition(pml_training.csv_cleaned$classe, p=0.75, list=FALSE)
+training <- pml_training.csv_cleaned[trainingindexes,]
+testing <- pml_training.csv_cleaned[-trainingindexes,]
+validating <- pml_validation.csv_cleaned
+```
+
+## Decision Tree Model
+We train and display the decision tree model: 
+```{r}
+fitModDT <- train(classe~.,data=training,method="rpart")
+fancyRpartPlot(fitModDT$finalModel)
+```
+
+
+We preidct for the test set and use a confusion matrix to calculate the out of sample error
+```{r}
+predictDT <- predict(fitModDT,newdata=testing)
+confusionMatrix(predictDT,testing$classe)
+```
+We can see that the out of sample accuracy is 48.8% or an out of sample error of 51.2%
+
+## Random Forest Model
+We train and display the random forest model: 
+```{r}
+fitModRF <- train(classe~.,data=training,method="rf")
+fitModRF
+
+```
+We preidct for the test set and use a confusion matrix to calculate the out of sample error
+```{r}
+predictRF <- predict(fitModRF,newdata=testing)
+confusionMatrix(predictRF,testing$classe)
+
+```
+We can see that the out of sample accuracy is 99% or an out of sample error of 1%
+
+## Generalised Boosting Model
+We train and display the generalised boosting model: 
+```{r}
+fitModBO <- train(classe~.,data=training,method="gbm",verbose=F)
+fitModBO
+```
+We preidct for the test set and use a confusion matrix to calculate the out of sample error
+
+```{r}
+predictBO <- predict(fitModBO,newdata=testing)
+confusionMatrix(predictBO,testing$classe)
+```
+
+We can see that the out of sample accuracy is 96% or an out of sample error of 4%
+
+## Conclusion
+
+We can see that the random forest model gives the best out of sample accuracy, so this is the model we will select.
+
+## making predictions on the test set
+
+We will predict the classification of the 20 excersises in the test set using fitModBO:
+```{r}
+predict(fitModRF,newdata=validating)
+```
+
+
+
+
+
